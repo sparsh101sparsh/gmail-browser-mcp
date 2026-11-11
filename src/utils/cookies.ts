@@ -74,3 +74,19 @@ export function normalizeCookies(rawCookies: any[]): PlaywrightCookie[] {
       return cookie;
     });
 }
+
+export function detectAccountIndex(cookies: PlaywrightCookie[]): number {
+  if (process.env.GMAIL_ACCOUNT_INDEX) {
+    const parsed = parseInt(process.env.GMAIL_ACCOUNT_INDEX, 10);
+    if (!isNaN(parsed)) return parsed;
+  }
+
+  for (const c of cookies) {
+    if (c.path) {
+      const match = c.path.match(/\/mail\/u\/(\d+)/);
+      if (match) return parseInt(match[1], 10);
+    }
+  }
+
+  return 0;
+}
