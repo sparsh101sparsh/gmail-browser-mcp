@@ -24,7 +24,11 @@
     "modelcontextprotocol",
     "email"
   ],
-  "author": "",
+  "author": "sparsh101sparsh <iamsparshemail02@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sparsh101sparsh/gmail-browser-mcp.git"
+  },
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.1",
