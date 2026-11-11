@@ -66,3 +66,11 @@ export class RateLimiter {
 }
 
 export const defaultRateLimiter = new RateLimiter();
+
+export async function humanType(page: Page, locator: Locator, text: string): Promise<void> {
+  await locator.click();
+  for (const char of text) {
+    const delay = Math.floor(Math.random() * 41) + 30;
+    await page.keyboard.type(char, { delay });
+  }
+}
