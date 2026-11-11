@@ -1,0 +1,13 @@
+node_modules/
+.agents/
+.DS_Store
+*.log
+inbox_debug.png
+compose_clicked.png
+modal_compose_opened.png
+mouse_clicked.png
+direct_compose.png
+direct_compose_loaded.png
+direct_compose_filled.png
+after_send_click.png
+confirmation_result.png
