@@ -1,0 +1,37 @@
+{
+  "name": "gmail-browser-mcp",
+  "version": "1.0.0",
+  "description": "Local browser-automated Gmail MCP server using Playwright and session cookies",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "gmail-browser-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "watch": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "node --test test/cookies.test.js test/rate_limiter.test.js test/guardrails.test.js test/validation.test.js test/mcp_protocol.test.js test/speed_benchmark.test.js test/advanced_tools.test.js",
+    "test:unit": "node --test test/cookies.test.js test/rate_limiter.test.js test/guardrails.test.js test/validation.test.js test/mcp_protocol.test.js test/advanced_tools.test.js",
+    "test:speed": "node --test test/speed_benchmark.test.js",
+    "test:e2e": "node test/e2e_live.test.js"
+  },
+  "keywords": [
+    "gmail",
+    "mcp",
+    "browser",
+    "playwright",
+    "modelcontextprotocol",
+    "email"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.1",
+    "playwright": "^1.50.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2"
+  }
+}
