@@ -3,7 +3,8 @@ import os from "node:os";
 import fs from "node:fs";
 import { defaultSessionManager } from "../browser/session.js";
 import { checkPageSafety } from "../browser/guardrails.js";
-import { defaultRateLimiter, fastInjectText, fastFillRecipient, fastFillSubject, } from "../utils/rate_limiter.js";
+import { defaultRateLimiter, fastInjectText, fastInjectHtml, fastFillRecipient, fastFillSubject, } from "../utils/rate_limiter.js";
+import { sanitizeEmailBody, compileSearchQuery } from "../utils/security.js";
 import { validateAttachments, attachFilesAndWait } from "./attachments.js";
 export class GmailService {
     sessionManager;
@@ -50,11 +51,14 @@ export class GmailService {
                         const subjectBox = page.locator("input[name='subjectbox'], input[aria-label*='Subject' i]").first();
                         await fastFillSubject(subjectBox, subject);
                     }
-                    if (body) {
-                        const bodyBox = page
-                            .locator("div[role='textbox'][aria-label*='Message Body' i], div[aria-label*='Message Body' i]")
-                            .first();
-                        await bodyBox.waitFor({ state: "visible", timeout: 5000 });
+                    const bodyBox = page
+                        .locator("div[role='textbox'][aria-label*='Message Body' i], div[aria-label*='Message Body' i]")
+                        .first();
+                    await bodyBox.waitFor({ state: "visible", timeout: 5000 });
+                    if (args.html || args.body_type === "html") {
+                        await fastInjectHtml(page, bodyBox, args.html || body);
+                    }
+                    else if (body) {
                         await fastInjectText(page, bodyBox, body);
                     }
                     if (attachmentPaths.length > 0) {
@@ -95,8 +99,13 @@ export class GmailService {
                     }
                 }
                 const currentBodyText = (await bodyBox.innerText().catch(() => "")).trim();
-                if (!currentBodyText && body) {
-                    await fastInjectText(page, bodyBox, body);
+                if (!currentBodyText) {
+                    if (args.html || args.body_type === "html") {
+                        await fastInjectHtml(page, bodyBox, args.html || body);
+                    }
+                    else if (body) {
+                        await fastInjectText(page, bodyBox, body);
+                    }
                 }
                 if (attachmentPaths.length > 0) {
                     await attachFilesAndWait(page, attachmentPaths);
@@ -199,7 +208,12 @@ export class GmailService {
                 .locator("div[role='textbox'][aria-label*='Message Body' i], div[aria-label*='Message Body' i]")
                 .first();
             await bodyBox.waitFor({ state: "visible", timeout: 10000 });
-            await fastInjectText(page, bodyBox, body);
+            if (args.html || args.body_type === "html") {
+                await fastInjectHtml(page, bodyBox, args.html || body);
+            }
+            else {
+                await fastInjectText(page, bodyBox, body);
+            }
             if (attachmentPaths.length > 0) {
                 await attachFilesAndWait(page, attachmentPaths);
             }
@@ -311,12 +325,17 @@ export class GmailService {
                 const subjectBox = page.locator("input[name='subjectbox'], input[aria-label*='Subject' i]").first();
                 await fastFillSubject(subjectBox, subject);
             }
-            if (body) {
+            if (body || args.html) {
                 const bodyBox = page
                     .locator("div[role='textbox'][aria-label*='Message Body' i], div[aria-label*='Message Body' i]")
                     .first();
                 await bodyBox.waitFor({ state: "visible", timeout: 6000 });
-                await fastInjectText(page, bodyBox, body);
+                if (args.html || args.body_type === "html") {
+                    await fastInjectHtml(page, bodyBox, args.html || body);
+                }
+                else {
+                    await fastInjectText(page, bodyBox, body);
+                }
             }
             if (attachmentPaths.length > 0) {
                 await attachFilesAndWait(page, attachmentPaths);
@@ -415,10 +434,7 @@ export class GmailService {
         if (!args || typeof args !== "object") {
             throw new Error("Must provide arguments object for searchEmails.");
         }
-        const query = (args.query || "").trim();
-        if (!query) {
-            throw new Error("Search query cannot be empty.");
-        }
+        const query = compileSearchQuery(args);
         const limit = this.rateLimiter.clampSearchLimit(args.limit);
         return await this.sessionManager.withWarmPage(async (page) => {
             await this.rateLimiter.enforcePacing("search_emails");
@@ -513,6 +529,12 @@ export class GmailService {
             const subjectEl = page.locator("h2.hP, div[role='main'] h2").first();
             await subjectEl.waitFor({ state: "visible", timeout: 15000 });
             const subject = (await subjectEl.innerText().catch(() => "")) || "(No Subject)";
+            // Automatically expand collapsed messages in thread so full conversation history is captured
+            const collapsedMessages = page.locator("span.kQ, div[aria-expanded='false'].adn, div.kv");
+            const collapsedCount = await collapsedMessages.count().catch(() => 0);
+            for (let c = 0; c < Math.min(collapsedCount, 15); c++) {
+                await collapsedMessages.nth(c).click().catch(() => { });
+            }
             const messageContainers = page.locator("div.gs, div.adn");
             const messageCount = await messageContainers.count();
             const messages = [];
@@ -527,9 +549,7 @@ export class GmailService {
                     const date = (await dateEl.innerText().catch(() => "")) || "";
                     const bodyEl = msg.locator("div.a3s.aiL, div[dir='ltr']").first();
                     const rawBody = (await bodyEl.innerText().catch(() => "")) || "";
-                    const body = rawBody
-                        .replace(/<<<PROMPT_INJECTION_DEFENSE>>>/g, "")
-                        .slice(0, 50000);
+                    const body = sanitizeEmailBody(rawBody);
                     const attachmentEls = msg.locator("span.aV3, a[download], div.aZo");
                     const attCount = await attachmentEls.count();
                     const attachments = [];
@@ -937,6 +957,19 @@ export class GmailService {
                 timeout: 20000,
             });
             await checkPageSafety(page);
+            const threadLoaded = await page
+                .locator("h2.hP, div.gs, div.adn")
+                .first()
+                .isVisible({ timeout: 5000 })
+                .catch(() => false);
+            if (!threadLoaded) {
+                console.error(`[gmail] Thread not found in #inbox, falling back to #all/${threadId}...`);
+                await page.goto(`https://mail.google.com/mail/u/${acc}/#all/${encodeURIComponent(threadId)}`, {
+                    waitUntil: "domcontentloaded",
+                    timeout: 20000,
+                });
+                await checkPageSafety(page);
+            }
         }
         else if (query) {
             await page.goto(`https://mail.google.com/mail/u/${acc}/#search/${encodeURIComponent(query)}`, {
@@ -986,11 +1019,40 @@ export class GmailService {
         });
     }
     async awaitToastConfirmation(page, keyword) {
+        const lowerTarget = keyword.toLowerCase();
+        const commonSentKeywords = [
+            lowerTarget,
+            "message sent",
+            "mensaje enviado",
+            "nachricht gesendet",
+            "message envoyé",
+            "mensagem enviada",
+            "संदेश भेजा गया",
+            "has been added",
+            "trash emptied",
+            "draft discarded",
+            "snoozed until",
+        ];
         for (let i = 0; i < 15; i++) {
             await page.waitForTimeout(500);
-            const text = await page.evaluate(() => document.body.innerText).catch(() => "");
-            if (text.toLowerCase().includes(keyword.toLowerCase())) {
+            const toastEl = page
+                .locator("div[role='alert'], div[aria-live='assertive'], div[aria-live='polite'], span.bBe, div.vh, div.a8r")
+                .first();
+            if (await toastEl.isVisible().catch(() => false)) {
+                const toastText = (await toastEl.innerText().catch(() => "")).toLowerCase();
+                if (toastText.includes(lowerTarget))
+                    return true;
+                for (const kw of commonSentKeywords) {
+                    if (toastText.includes(kw))
+                        return true;
+                }
+            }
+            const text = (await page.evaluate(() => (document.body ? document.body.innerText.substring(0, 15000) : "")).catch(() => "")).toLowerCase();
+            if (text.includes(lowerTarget))
                 return true;
+            for (const kw of commonSentKeywords) {
+                if (text.includes(kw))
+                    return true;
             }
         }
         return false;

@@ -1,5 +1,6 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
+import path from "node:path";
 import { loadCookies, expandHome, getDefaultCookiePath } from "../utils/cookies.js";
 import { checkPageSafety } from "./guardrails.js";
 export class BrowserSessionManager {
@@ -69,11 +70,20 @@ export class BrowserSessionManager {
                 this.context = null;
                 this.browser = null;
             });
+            const proxyServer = process.env.GMAIL_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+            const proxyConfig = proxyServer ? { server: proxyServer } : undefined;
+            const timezoneId = process.env.GMAIL_TIMEZONE ||
+                Intl.DateTimeFormat().resolvedOptions().timeZone ||
+                "America/New_York";
+            const customUserAgent = process.env.GMAIL_USER_AGENT ||
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
             this.context = await this.browser.newContext({
-                userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
+                userAgent: customUserAgent,
                 viewport: { width: 1280, height: 800 },
                 deviceScaleFactor: 1,
-                locale: "en-US",
+                locale: process.env.GMAIL_LOCALE || "en-US",
+                timezoneId,
+                proxy: proxyConfig,
             });
             // Remove navigator.webdriver
             await this.context.addInitScript(() => {
@@ -202,6 +212,20 @@ export class BrowserSessionManager {
             return await fn(this.warmPage);
         }
         catch (err) {
+            if (process.env.GMAIL_DEBUG_SCREENSHOTS === "true" &&
+                this.warmPage &&
+                !this.warmPage.isClosed()) {
+                try {
+                    const debugDir = path.resolve(".debug");
+                    if (!fs.existsSync(debugDir))
+                        fs.mkdirSync(debugDir, { recursive: true });
+                    const timestamp = Date.now();
+                    const debugFile = path.join(debugDir, `error_${timestamp}.png`);
+                    await this.warmPage.screenshot({ path: debugFile, fullPage: true }).catch(() => { });
+                    console.error(`[browser] Captured diagnostic failure screenshot: ${debugFile}`);
+                }
+                catch { }
+            }
             if (this.warmPage?.isClosed() || (this.browser && !this.browser.isConnected())) {
                 this.warmPage = null;
             }
@@ -209,6 +233,20 @@ export class BrowserSessionManager {
         }
         finally {
             releaseLock();
+        }
+    }
+    async saveCookiesToDisk() {
+        if (!this.context)
+            return;
+        try {
+            const currentCookies = await this.context.cookies();
+            const targetCookiePath = expandHome(this.cookiesPath || getDefaultCookiePath());
+            fs.writeFileSync(targetCookiePath, JSON.stringify(currentCookies, null, 2), "utf-8");
+            this.cookieMtime = fs.statSync(targetCookiePath).mtimeMs;
+            console.error(`[browser] Automatically refreshed and saved ${currentCookies.length} session cookies to disk.`);
+        }
+        catch (saveErr) {
+            console.error(`[browser] Could not auto-save cookies to disk: ${saveErr.message}`);
         }
     }
     async withPage(fn) {
@@ -234,6 +272,9 @@ export class BrowserSessionManager {
         }
     }
     async close() {
+        if (process.env.GMAIL_AUTO_SAVE_COOKIES === "true") {
+            await this.saveCookiesToDisk().catch(() => { });
+        }
         if (this.warmPage) {
             await this.warmPage.close().catch(() => { });
             this.warmPage = null;

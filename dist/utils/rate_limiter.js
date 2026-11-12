@@ -1,3 +1,4 @@
+import { parseRecipients } from "./recipients.js";
 export class RateLimiter {
     lastActionTime = 0;
     minIntervalMs;
@@ -94,10 +95,30 @@ export async function fastInjectText(page, locator, text) {
 export async function fastFillRecipient(page, locator, recipient) {
     if (!recipient)
         return;
-    const list = recipient.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+    const list = parseRecipients(recipient);
     for (const item of list) {
         await locator.fill(item);
         await locator.press("Enter");
+    }
+}
+export async function fastInjectHtml(page, locator, html) {
+    if (!html)
+        return;
+    await locator.focus();
+    try {
+        await locator.evaluate((el, htmlContent) => {
+            el.focus();
+            const success = document.execCommand("insertHTML", false, htmlContent);
+            if (!success) {
+                el.innerHTML = htmlContent;
+                el.dispatchEvent(new Event("input", { bubbles: true }));
+                el.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+        }, html);
+    }
+    catch {
+        // If evaluate fails, fallback to standard text injection
+        await fastInjectText(page, locator, html);
     }
 }
 export async function fastFillSubject(locator, subject) {

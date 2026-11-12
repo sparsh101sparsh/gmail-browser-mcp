@@ -18,6 +18,7 @@ export declare class RateLimiter {
 }
 export declare function fastInjectText(page: Page, locator: Locator, text: string): Promise<void>;
 export declare function fastFillRecipient(page: Page, locator: Locator, recipient: string): Promise<void>;
+export declare function fastInjectHtml(page: Page, locator: Locator, html: string): Promise<void>;
 export declare function fastFillSubject(locator: Locator, subject: string): Promise<void>;
 export declare function humanType(page: Page, locator: Locator, text: string): Promise<void>;
 export declare const defaultRateLimiter: RateLimiter;

@@ -16,6 +16,7 @@ export declare class BrowserSessionManager {
     getContext(): Promise<BrowserContext>;
     warmup(accountIndex?: number): Promise<void>;
     withWarmPage<T>(fn: (page: Page) => Promise<T>, accountIndex?: number): Promise<T>;
+    saveCookiesToDisk(): Promise<void>;
     withPage<T>(fn: (page: Page) => Promise<T>): Promise<T>;
     close(): Promise<void>;
 }
