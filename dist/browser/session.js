@@ -14,6 +14,7 @@ export class BrowserSessionManager {
     cookiesPath;
     cookieMtime = 0;
     accountIndex = 1;
+    isPersistent = false;
     constructor(options) {
         this.cookiesPath = options?.cookiesPath;
     }
@@ -21,18 +22,27 @@ export class BrowserSessionManager {
         return this.accountIndex;
     }
     async getContext() {
-        if (this.context && this.browser && this.browser.isConnected()) {
-            return this.context;
+        if (this.context) {
+            if (this.isPersistent) {
+                return this.context;
+            }
+            if (this.browser && this.browser.isConnected()) {
+                return this.context;
+            }
         }
-        if (this.browser && !this.browser.isConnected()) {
+        if (!this.isPersistent && this.browser && !this.browser.isConnected()) {
             await this.close();
         }
         if (this.isInitializing) {
             while (this.isInitializing) {
                 await new Promise((res) => setTimeout(res, 50));
             }
-            if (this.context && this.browser && this.browser.isConnected())
-                return this.context;
+            if (this.context) {
+                if (this.isPersistent)
+                    return this.context;
+                if (this.browser && this.browser.isConnected())
+                    return this.context;
+            }
         }
         this.isInitializing = true;
         try {
@@ -94,6 +104,7 @@ export class BrowserSessionManager {
                     console.error("[browser] Persistent context closed.");
                     this.warmPage = null;
                     this.context = null;
+                    this.isPersistent = false;
                 });
                 return this.context;
             }
@@ -168,10 +179,10 @@ export class BrowserSessionManager {
         if (this.warmupPromise) {
             return this.warmupPromise;
         }
+        const isContextConnected = this.isPersistent ? !!this.context : (this.browser && this.browser.isConnected());
         if (this.warmPage &&
             !this.warmPage.isClosed() &&
-            this.browser &&
-            this.browser.isConnected()) {
+            isContextConnected) {
             return;
         }
         this.warmupPromise = (async () => {
@@ -236,7 +247,8 @@ export class BrowserSessionManager {
             const context = await this.getContext();
             const acc = accountIndex ?? this.accountIndex;
             // Check if warmPage exists and is open
-            if (!this.warmPage || this.warmPage.isClosed() || !this.browser || !this.browser.isConnected()) {
+            const isContextConnected = this.isPersistent ? !!this.context : (this.browser && this.browser.isConnected());
+            if (!this.warmPage || this.warmPage.isClosed() || !isContextConnected) {
                 this.warmPage = await context.newPage();
                 this.warmPage.on("crash", () => {
                     console.error("[browser] Warm primary page crashed. Invalidating page.");
@@ -280,7 +292,8 @@ export class BrowserSessionManager {
                 }
                 catch { }
             }
-            if (this.warmPage?.isClosed() || (this.browser && !this.browser.isConnected())) {
+            const isDisconnected = this.isPersistent ? !this.context : (this.browser && !this.browser.isConnected());
+            if (this.warmPage?.isClosed() || isDisconnected) {
                 this.warmPage = null;
             }
             throw err;
@@ -341,6 +354,7 @@ export class BrowserSessionManager {
             await this.browser.close().catch(() => { });
             this.browser = null;
         }
+        this.isPersistent = false;
     }
 }
 export const defaultSessionManager = new BrowserSessionManager();

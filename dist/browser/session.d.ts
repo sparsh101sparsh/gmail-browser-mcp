@@ -9,6 +9,7 @@ export declare class BrowserSessionManager {
     private cookiesPath?;
     private cookieMtime;
     private accountIndex;
+    private isPersistent;
     constructor(options?: {
         cookiesPath?: string;
     });
