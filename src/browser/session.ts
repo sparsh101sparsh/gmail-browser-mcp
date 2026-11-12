@@ -209,11 +209,11 @@ export class BrowserSessionManager {
         await this.warmupPromise.catch(() => {});
       }
 
+      const context = await this.getContext();
       const acc = accountIndex ?? this.accountIndex;
 
       // Check if warmPage exists and is open
       if (!this.warmPage || this.warmPage.isClosed() || !this.browser || !this.browser.isConnected()) {
-        const context = await this.getContext();
         this.warmPage = await context.newPage();
         this.warmPage.on("crash", () => {
           console.error("[browser] Warm primary page crashed. Invalidating page.");
