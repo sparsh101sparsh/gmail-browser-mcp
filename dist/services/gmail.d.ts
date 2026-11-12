@@ -18,6 +18,16 @@ export declare class GmailService {
     deleteEmail(args: MailboxActionArgs): Promise<MailboxActionResult>;
     emptyTrash(): Promise<EmptyTrashResult>;
     markAsRead(args: MailboxActionArgs): Promise<MailboxActionResult>;
+    batchMarkAsRead(threadIds: string[]): Promise<{
+        count: number;
+        successes: string[];
+        errors: string[];
+    }>;
+    batchArchive(threadIds: string[]): Promise<{
+        count: number;
+        successes: string[];
+        errors: string[];
+    }>;
     markAsUnread(args: MailboxActionArgs): Promise<MailboxActionResult>;
     starEmail(args: MailboxActionArgs): Promise<MailboxActionResult>;
     unstarEmail(args: MailboxActionArgs): Promise<MailboxActionResult>;

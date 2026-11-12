@@ -615,6 +615,40 @@ export class GmailService {
     async markAsRead(args) {
         return await this.executeMailboxAction("mark_as_read", args, "div[role='button'][data-tooltip*='Mark as read' i], div[act='1'], div[aria-label*='Mark as read' i]", "Marked as read");
     }
+    async batchMarkAsRead(threadIds) {
+        if (!Array.isArray(threadIds) || threadIds.length === 0) {
+            throw new Error("Must provide non-empty array of thread IDs for batchMarkAsRead.");
+        }
+        const successes = [];
+        const errors = [];
+        for (const tid of threadIds) {
+            try {
+                await this.markAsRead({ thread_id: tid });
+                successes.push(tid);
+            }
+            catch (err) {
+                errors.push(`${tid}: ${err.message}`);
+            }
+        }
+        return { count: successes.length, successes, errors };
+    }
+    async batchArchive(threadIds) {
+        if (!Array.isArray(threadIds) || threadIds.length === 0) {
+            throw new Error("Must provide non-empty array of thread IDs for batchArchive.");
+        }
+        const successes = [];
+        const errors = [];
+        for (const tid of threadIds) {
+            try {
+                await this.archiveEmail({ thread_id: tid });
+                successes.push(tid);
+            }
+            catch (err) {
+                errors.push(`${tid}: ${err.message}`);
+            }
+        }
+        return { count: successes.length, successes, errors };
+    }
     async markAsUnread(args) {
         return await this.executeMailboxAction("mark_as_unread", args, "div[role='button'][data-tooltip*='Mark as unread' i], div[act='2'], div[aria-label*='Mark as unread' i]", "Marked as unread");
     }

@@ -806,6 +806,44 @@ export class GmailService {
     );
   }
 
+  public async batchMarkAsRead(
+    threadIds: string[]
+  ): Promise<{ count: number; successes: string[]; errors: string[] }> {
+    if (!Array.isArray(threadIds) || threadIds.length === 0) {
+      throw new Error("Must provide non-empty array of thread IDs for batchMarkAsRead.");
+    }
+    const successes: string[] = [];
+    const errors: string[] = [];
+    for (const tid of threadIds) {
+      try {
+        await this.markAsRead({ thread_id: tid });
+        successes.push(tid);
+      } catch (err: any) {
+        errors.push(`${tid}: ${err.message}`);
+      }
+    }
+    return { count: successes.length, successes, errors };
+  }
+
+  public async batchArchive(
+    threadIds: string[]
+  ): Promise<{ count: number; successes: string[]; errors: string[] }> {
+    if (!Array.isArray(threadIds) || threadIds.length === 0) {
+      throw new Error("Must provide non-empty array of thread IDs for batchArchive.");
+    }
+    const successes: string[] = [];
+    const errors: string[] = [];
+    for (const tid of threadIds) {
+      try {
+        await this.archiveEmail({ thread_id: tid });
+        successes.push(tid);
+      } catch (err: any) {
+        errors.push(`${tid}: ${err.message}`);
+      }
+    }
+    return { count: successes.length, successes, errors };
+  }
+
   public async markAsUnread(args: MailboxActionArgs): Promise<MailboxActionResult> {
     return await this.executeMailboxAction(
       "mark_as_unread",
