@@ -37,6 +37,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             to: { type: "string", description: "Recipient email address (e.g. user@example.com)." },
             subject: { type: "string", description: "Email subject line." },
             body: { type: "string", description: "Body text content of the email." },
+            html: { type: "string", description: "Optional rich HTML formatted email body." },
+            body_type: {
+              type: "string",
+              enum: ["plain", "html", "markdown"],
+              description: "Formatting mode for body content.",
+            },
             cc: { type: "string", description: "Optional CC recipient email address." },
             bcc: { type: "string", description: "Optional BCC recipient email address." },
             attachment_paths: {
@@ -58,6 +64,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             thread_id: { type: "string", description: "Target Gmail thread ID." },
             search_query: { type: "string", description: "Search query to find target thread." },
             body: { type: "string", description: "Reply message text." },
+            html: { type: "string", description: "Optional rich HTML formatted reply body." },
+            body_type: {
+              type: "string",
+              enum: ["plain", "html", "markdown"],
+              description: "Formatting mode for body content.",
+            },
             reply_all: { type: "boolean", description: "Whether to reply to all recipients." },
             attachment_paths: {
               type: "array",
@@ -91,11 +103,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "search_emails",
         description:
-          "Searches Gmail messages matching a search query string (e.g. 'from:example', 'is:unread', 'subject:test') and returns structured email summary items.",
+          "Searches Gmail messages matching a search query string or structured filters (from, to, subject, is_unread, has_attachments, label) and returns structured email summary items.",
         inputSchema: {
           type: "object",
           properties: {
-            query: { type: "string", description: "Gmail search query, keyword, or filter." },
+            query: { type: "string", description: "Gmail search query, keyword, or raw filter string." },
+            from: { type: "string", description: "Filter by sender email address or name." },
+            to: { type: "string", description: "Filter by recipient email address." },
+            subject: { type: "string", description: "Filter by words in subject line." },
+            is_unread: { type: "boolean", description: "Filter by read/unread status." },
+            has_attachments: { type: "boolean", description: "Filter for messages with attachments." },
+            after_date: { type: "string", description: "Filter emails sent after YYYY/MM/DD." },
+            before_date: { type: "string", description: "Filter emails sent before YYYY/MM/DD." },
+            label: { type: "string", description: "Filter by Gmail label name." },
             limit: {
               type: "number",
               description: "Maximum number of email threads to return (default 10, max safe limit 30).",
@@ -125,6 +145,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             to: { type: "string", description: "Optional recipient email address." },
             subject: { type: "string", description: "Optional draft subject." },
             body: { type: "string", description: "Draft body text." },
+            html: { type: "string", description: "Optional rich HTML formatted draft body." },
+            body_type: {
+              type: "string",
+              enum: ["plain", "html", "markdown"],
+              description: "Formatting mode for body content.",
+            },
             cc: { type: "string", description: "Optional CC recipient." },
             bcc: { type: "string", description: "Optional BCC recipient." },
             attachment_paths: { type: "array", items: { type: "string" }, description: "Optional file paths." },

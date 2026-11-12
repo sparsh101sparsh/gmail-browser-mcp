@@ -2,6 +2,8 @@ export interface SendEmailArgs {
   to: string;
   subject: string;
   body: string;
+  html?: string;
+  body_type?: "plain" | "html" | "markdown";
   cc?: string;
   bcc?: string;
   attachment_paths?: string[];
@@ -17,8 +19,16 @@ export interface SendEmailResult {
 }
 
 export interface SearchEmailsArgs {
-  query: string;
+  query?: string;
   limit?: number;
+  from?: string;
+  to?: string;
+  subject?: string;
+  is_unread?: boolean;
+  has_attachments?: boolean;
+  after_date?: string;
+  before_date?: string;
+  label?: string;
 }
 
 export interface EmailSummaryItem {
@@ -63,6 +73,8 @@ export interface ReplyEmailArgs {
   thread_id?: string;
   search_query?: string;
   body: string;
+  html?: string;
+  body_type?: "plain" | "html" | "markdown";
   reply_all?: boolean;
   attachment_paths?: string[];
 }
@@ -97,6 +109,8 @@ export interface SaveDraftArgs {
   to?: string;
   subject?: string;
   body?: string;
+  html?: string;
+  body_type?: "plain" | "html" | "markdown";
   cc?: string;
   bcc?: string;
   attachment_paths?: string[];
