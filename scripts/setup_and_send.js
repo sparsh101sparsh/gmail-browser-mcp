@@ -111,12 +111,38 @@ Agent Assistant`;
   console.log(`[setup_and_send] Navigating to https://mail.google.com/...`);
   await page.goto("https://mail.google.com/", { waitUntil: "domcontentloaded" });
 
-  console.log(`\n>>> ACTION REQUIRED: If prompted, please log into your Gmail account in the opened Chrome window.`);
-  console.log(`>>> As soon as your inbox loads, the email will be sent automatically!\n`);
+  console.log(`\n>>> ACTION REQUIRED: Please complete the verification in the opened Chrome window.`);
+  console.log(`>>> Waiting up to 15 minutes for verification to complete and Gmail inbox to load...\n`);
 
-  // Wait up to 180 seconds for inbox
   const composeBtn = page.locator("div[gh='cm'], div[role='button']:has-text('Compose')").first();
-  await composeBtn.waitFor({ state: "visible", timeout: 180000 });
+  const maxWaitMs = 15 * 60 * 1000;
+  const startWait = Date.now();
+  let inboxReady = false;
+  let lastReport = Date.now();
+
+  while (Date.now() - startWait < maxWaitMs) {
+    if (await composeBtn.isVisible().catch(() => false)) {
+      inboxReady = true;
+      break;
+    }
+    const curUrl = page.url();
+    if (curUrl.includes("mail.google.com/mail") && !curUrl.includes("signin") && !curUrl.includes("verification")) {
+      if (await composeBtn.isVisible().catch(() => false)) {
+        inboxReady = true;
+        break;
+      }
+    }
+    if (Date.now() - lastReport >= 15000) {
+      const elapsedMin = ((Date.now() - startWait) / 60000).toFixed(1);
+      console.log(`[setup_and_send] Still waiting for inbox (${elapsedMin}m elapsed)... Current URL: ${curUrl.slice(0, 75)}...`);
+      lastReport = Date.now();
+    }
+    await page.waitForTimeout(2000);
+  }
+
+  if (!inboxReady) {
+    throw new Error("Timeout: Inbox did not load within 15 minutes.");
+  }
 
   console.log(`[setup_and_send] INBOX DETECTED! Triggering compose modal...`);
   await composeBtn.click();
