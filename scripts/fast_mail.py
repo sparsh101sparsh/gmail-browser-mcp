@@ -221,6 +221,61 @@ def cmd_login(args):
     subprocess.run(["node", str(setup_script)], cwd=REPO_ROOT)
 
 
+def cmd_metrics(args):
+    """Retrieves operational metrics from background daemon."""
+    if not is_socket_active():
+        print(f"{YELLOW}Daemon is not active at {SOCKET_PATH}. Start it with 'daemon start'.{RESET}")
+        return
+    res = send_via_socket("metrics", {})
+    if res.get("status") == "success":
+        data = res.get("data", {})
+        pid = data.get("pid")
+        uptime = data.get("uptime_seconds", 0)
+        reqs = data.get("requests_handled", 0)
+        mem_rss = data.get("memory", {}).get("rss", 0) / (1024 * 1024)
+        print(f"\n{GREEN}{BOLD}=== Gmail Daemon Metrics ==={RESET}")
+        print(f"  • Process ID:       {CYAN}{pid}{RESET}")
+        print(f"  • Uptime:           {CYAN}{uptime}s{RESET}")
+        print(f"  • Requests Handled: {CYAN}{reqs}{RESET}")
+        print(f"  • RAM RSS:          {CYAN}{mem_rss:.1f} MB{RESET}\n")
+    else:
+        print(f"{RED}Failed to fetch metrics: {res.get('error')}{RESET}")
+
+
+def cmd_doctor(args):
+    """Performs end-to-end self-diagnostic system health check."""
+    print(f"\n{BOLD}{CYAN}=== Gmail MCP System Health Diagnostics (Doctor) ==={RESET}\n")
+
+    # 1. Check Node
+    try:
+        node_ver = subprocess.check_output(["node", "--version"], text=True).strip()
+        print(f"  [{GREEN}✓{RESET}] Node.js runtime:        {GREEN}{node_ver}{RESET}")
+    except Exception as e:
+        print(f"  [{RED}✗{RESET}] Node.js runtime:        {RED}Missing or error ({e}){RESET}")
+
+    # 2. Check Playwright Chromium
+    profile_dir = Path.home() / ".gmail-mcp-profile"
+    if profile_dir.exists():
+        print(f"  [{GREEN}✓{RESET}] Persistent Profile:     {GREEN}{profile_dir} (Present){RESET}")
+    else:
+        print(f"  [{YELLOW}!{RESET}] Persistent Profile:     {YELLOW}{profile_dir} (Not yet initialized){RESET}")
+
+    # 3. Check Unix Socket
+    if is_socket_active():
+        print(f"  [{GREEN}✓{RESET}] Warm Socket Daemon:     {GREEN}Active ({SOCKET_PATH}){RESET}")
+    else:
+        print(f"  [{YELLOW}!{RESET}] Warm Socket Daemon:     {YELLOW}Idle (Start via 'daemon start'){RESET}")
+
+    # 4. Check Stdio Dist Build
+    dist_index = REPO_ROOT / "dist" / "index.js"
+    if dist_index.exists():
+        print(f"  [{GREEN}✓{RESET}] MCP Stdio Build:        {GREEN}Compiled ({dist_index}){RESET}")
+    else:
+        print(f"  [{YELLOW}!{RESET}] MCP Stdio Build:        {YELLOW}Missing (Run 'npm run build'){RESET}")
+
+    print(f"\n{BOLD}Diagnostic assessment complete.{RESET}\n")
+
+
 def cmd_daemon(args):
     action = args.subaction
     daemon_script = REPO_ROOT / "scripts" / "daemon.js"
@@ -315,6 +370,14 @@ def main():
     p_daemon = subparsers.add_parser("daemon", help="Manage warm background daemon")
     p_daemon.add_argument("subaction", choices=["start", "stop", "status"], help="Daemon command")
     p_daemon.set_defaults(func=cmd_daemon)
+
+    # 8. Metrics
+    p_metrics = subparsers.add_parser("metrics", help="Show operational daemon memory & uptime metrics")
+    p_metrics.set_defaults(func=cmd_metrics)
+
+    # 9. Doctor
+    p_doctor = subparsers.add_parser("doctor", help="Run end-to-end self-diagnostic system health check")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     args = parser.parse_args()
     args.func(args)
