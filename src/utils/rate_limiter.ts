@@ -1,4 +1,5 @@
 import type { Page, Locator } from "playwright";
+import { parseRecipients } from "./recipients.js";
 
 export class RateLimiter {
   private lastActionTime: number = 0;
@@ -111,10 +112,29 @@ export async function fastInjectText(page: Page, locator: Locator, text: string)
 
 export async function fastFillRecipient(page: Page, locator: Locator, recipient: string): Promise<void> {
   if (!recipient) return;
-  const list = recipient.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+  const list = parseRecipients(recipient);
   for (const item of list) {
     await locator.fill(item);
     await locator.press("Enter");
+  }
+}
+
+export async function fastInjectHtml(page: Page, locator: Locator, html: string): Promise<void> {
+  if (!html) return;
+  await locator.focus();
+  try {
+    await locator.evaluate((el: HTMLElement, htmlContent: string) => {
+      el.focus();
+      const success = document.execCommand("insertHTML", false, htmlContent);
+      if (!success) {
+        el.innerHTML = htmlContent;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }, html);
+  } catch {
+    // If evaluate fails, fallback to standard text injection
+    await fastInjectText(page, locator, html);
   }
 }
 
