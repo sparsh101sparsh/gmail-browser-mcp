@@ -14,9 +14,19 @@ import { defaultGmailService, GmailService } from "../dist/services/gmail.js";
 import { defaultSessionManager, BrowserSessionManager } from "../dist/browser/session.js";
 
 const SOCKET_PATH = process.env.GMAIL_SOCKET_PATH || "/tmp/gmail_mcp.sock";
+const PID_PATH = process.env.GMAIL_PID_PATH || "/tmp/gmail_mcp.pid";
+const DAEMON_START_TIME = Date.now();
+let requestsHandled = 0;
 
 async function main() {
-  console.log(`[daemon] Starting High-Speed Gmail Background Daemon...`);
+  console.log(`[daemon] Starting High-Speed Gmail Background Daemon (PID: ${process.pid})...`);
+
+  // Write current PID file
+  try {
+    fs.writeFileSync(PID_PATH, String(process.pid), "utf-8");
+  } catch (err) {
+    console.warn(`[daemon] Could not write PID file: ${err.message}`);
+  }
 
   // Remove stale socket if exists
   if (fs.existsSync(SOCKET_PATH)) {
@@ -82,9 +92,18 @@ async function main() {
               case "ping":
                 result = { pong: true, time: Date.now() };
                 break;
+              case "metrics":
+                result = {
+                  pid: process.pid,
+                  uptime_seconds: Math.floor((Date.now() - DAEMON_START_TIME) / 1000),
+                  requests_handled: requestsHandled,
+                  memory: process.memoryUsage(),
+                };
+                break;
               default:
                 throw new Error(`Unknown daemon action: '${action}'`);
             }
+            requestsHandled++;
 
             const latencyMs = Math.round(performance.now() - startTime);
             socket.write(
@@ -119,10 +138,11 @@ async function main() {
   });
 
   const cleanup = async () => {
-    console.log(`[daemon] Shutting down daemon...`);
+    console.log(`[daemon] Shutting down daemon (PID: ${process.pid})...`);
     try {
       server.close();
       if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH);
+      if (fs.existsSync(PID_PATH)) fs.unlinkSync(PID_PATH);
       await defaultSessionManager.close();
     } catch {}
     process.exit(0);
@@ -130,6 +150,7 @@ async function main() {
 
   process.on("SIGINT", cleanup);
   process.on("SIGTERM", cleanup);
+  process.on("SIGHUP", cleanup);
 }
 
 main().catch((err) => {
