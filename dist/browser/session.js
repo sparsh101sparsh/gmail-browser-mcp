@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { loadCookies, expandHome, getDefaultCookiePath } from "../utils/cookies.js";
 import { checkPageSafety } from "./guardrails.js";
 export class BrowserSessionManager {
@@ -36,6 +37,66 @@ export class BrowserSessionManager {
         this.isInitializing = true;
         try {
             const headless = process.env.GMAIL_HEADLESS !== "false";
+            const proxyServer = process.env.GMAIL_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+            const proxyConfig = proxyServer ? { server: proxyServer } : undefined;
+            const timezoneId = process.env.GMAIL_TIMEZONE ||
+                Intl.DateTimeFormat().resolvedOptions().timeZone ||
+                "America/New_York";
+            const customUserAgent = process.env.GMAIL_USER_AGENT ||
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
+            const useProfile = process.env.GMAIL_USE_PROFILE === "true" || !!process.env.GMAIL_PROFILE_DIR;
+            const profileDir = expandHome(process.env.GMAIL_PROFILE_DIR || path.join(os.homedir(), ".gmail-mcp-profile"));
+            if (useProfile) {
+                if (!fs.existsSync(profileDir)) {
+                    fs.mkdirSync(profileDir, { recursive: true });
+                }
+                console.error(`[browser] Launching with persistent profile directory: ${profileDir}`);
+                const launchArgs = [
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-infobars",
+                    "--disable-dev-shm-usage",
+                    "--window-size=1280,800",
+                ];
+                try {
+                    this.context = await chromium.launchPersistentContext(profileDir, {
+                        headless,
+                        channel: "chrome",
+                        args: launchArgs,
+                        userAgent: customUserAgent,
+                        viewport: { width: 1280, height: 800 },
+                        deviceScaleFactor: 1,
+                        locale: process.env.GMAIL_LOCALE || "en-US",
+                        timezoneId,
+                        proxy: proxyConfig,
+                    });
+                }
+                catch (err) {
+                    console.error(`[browser] Chrome channel launch failed with profile (${err.message}). Falling back to Chromium.`);
+                    this.context = await chromium.launchPersistentContext(profileDir, {
+                        headless,
+                        args: launchArgs,
+                        userAgent: customUserAgent,
+                        viewport: { width: 1280, height: 800 },
+                        deviceScaleFactor: 1,
+                        locale: process.env.GMAIL_LOCALE || "en-US",
+                        timezoneId,
+                        proxy: proxyConfig,
+                    });
+                }
+                await this.context.addInitScript(() => {
+                    Object.defineProperty(navigator, "webdriver", {
+                        get: () => undefined,
+                    });
+                });
+                this.context.on("close", () => {
+                    console.error("[browser] Persistent context closed.");
+                    this.warmPage = null;
+                    this.context = null;
+                });
+                return this.context;
+            }
             try {
                 this.browser = await chromium.launch({
                     headless,
@@ -70,13 +131,6 @@ export class BrowserSessionManager {
                 this.context = null;
                 this.browser = null;
             });
-            const proxyServer = process.env.GMAIL_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
-            const proxyConfig = proxyServer ? { server: proxyServer } : undefined;
-            const timezoneId = process.env.GMAIL_TIMEZONE ||
-                Intl.DateTimeFormat().resolvedOptions().timeZone ||
-                "America/New_York";
-            const customUserAgent = process.env.GMAIL_USER_AGENT ||
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36";
             this.context = await this.browser.newContext({
                 userAgent: customUserAgent,
                 viewport: { width: 1280, height: 800 },
