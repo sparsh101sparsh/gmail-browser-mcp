@@ -27,6 +27,11 @@ export function validateAttachments(attachmentPaths) {
         if (stat.size === 0) {
             throw new Error(`Attachment file is empty (0 bytes): ${resolved}`);
         }
+        const ext = path.extname(resolved).toLowerCase();
+        const BLOCKED_EXTENSIONS = [".exe", ".bat", ".cmd", ".vbs", ".ps1", ".scr", ".com"];
+        if (BLOCKED_EXTENSIONS.includes(ext)) {
+            throw new Error(`Blocked attachment extension (${ext}): Executable attachments are rejected by Google security policies.`);
+        }
         totalSizeBytes += stat.size;
         resolvedPaths.push(resolved);
     }
