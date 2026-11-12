@@ -27,6 +27,11 @@ export interface SearchEmailsArgs {
     after_date?: string;
     before_date?: string;
     label?: string;
+    is_starred?: boolean;
+    larger_than?: string;
+    smaller_than?: string;
+    filename?: string;
+    in_folder?: string;
 }
 export interface EmailSummaryItem {
     id?: string;

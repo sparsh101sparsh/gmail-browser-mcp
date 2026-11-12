@@ -87,6 +87,26 @@ export function compileSearchQuery(args: SearchEmailsArgs): string {
     parts.push(`label:${args.label.trim()}`);
   }
 
+  if (args.is_starred === true) {
+    parts.push("is:starred");
+  }
+
+  if (args.larger_than && args.larger_than.trim()) {
+    parts.push(`larger:${args.larger_than.trim()}`);
+  }
+
+  if (args.smaller_than && args.smaller_than.trim()) {
+    parts.push(`smaller:${args.smaller_than.trim()}`);
+  }
+
+  if (args.filename && args.filename.trim()) {
+    parts.push(`filename:${args.filename.trim()}`);
+  }
+
+  if (args.in_folder && args.in_folder.trim()) {
+    parts.push(`in:${args.in_folder.trim()}`);
+  }
+
   const compiled = parts.join(" ").trim();
   if (!compiled) {
     throw new Error(
