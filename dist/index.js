@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, ErrorCode, McpError, } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, ErrorCode, McpError, } from "@modelcontextprotocol/sdk/types.js";
 import { defaultGmailService } from "./services/gmail.js";
 import { defaultSessionManager } from "./browser/session.js";
+import { computeInboxHealth } from "./services/analytics.js";
+import { defaultCache } from "./utils/cache.js";
 const server = new Server({
     name: "gmail-browser-mcp",
-    version: "1.0.0",
+    version: "1.1.0",
 }, {
     capabilities: {
         tools: {},
+        resources: {},
+        prompts: {},
     },
 });
 // Register Complete Suite of Gmail MCP Tools
@@ -469,10 +473,174 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
     }
 });
+// Register MCP Resources
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return {
+        resources: [
+            {
+                uri: "gmail://stats",
+                name: "Gmail Live Inbox Statistics",
+                description: "Real-time unread email metrics across primary, promotions, social, and updates.",
+                mimeType: "application/json",
+            },
+            {
+                uri: "gmail://health",
+                name: "Gmail Inbox Health & Velocity",
+                description: "Computed inbox workload health score (0-100) and actionable triage guidance.",
+                mimeType: "application/json",
+            },
+            {
+                uri: "gmail://inbox/unread",
+                name: "Gmail Recent Unread Emails",
+                description: "Top unread emails formatted with sender, subject, and snippet context.",
+                mimeType: "text/markdown",
+            },
+        ],
+    };
+});
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const uri = request.params.uri;
+    if (uri === "gmail://stats") {
+        let stats = defaultCache.get("resource:stats");
+        if (!stats) {
+            stats = await defaultGmailService.getInboxStats();
+            defaultCache.set("resource:stats", stats, 15000);
+        }
+        return {
+            contents: [
+                {
+                    uri,
+                    mimeType: "application/json",
+                    text: JSON.stringify(stats, null, 2),
+                },
+            ],
+        };
+    }
+    if (uri === "gmail://health") {
+        let stats = defaultCache.get("resource:stats");
+        if (!stats) {
+            stats = await defaultGmailService.getInboxStats();
+            defaultCache.set("resource:stats", stats, 15000);
+        }
+        const health = computeInboxHealth(stats);
+        return {
+            contents: [
+                {
+                    uri,
+                    mimeType: "application/json",
+                    text: JSON.stringify(health, null, 2),
+                },
+            ],
+        };
+    }
+    if (uri === "gmail://inbox/unread") {
+        const unread = await defaultGmailService.searchEmails({ is_unread: true, limit: 10 });
+        const markdown = unread.emails
+            .map((e) => `### [${e.date}] ${e.sender}: ${e.subject}\n> ${e.snippet}\n- Unread: ${e.is_unread} | Attachments: ${e.has_attachments}\n`)
+            .join("\n---\n\n");
+        return {
+            contents: [
+                {
+                    uri,
+                    mimeType: "text/markdown",
+                    text: `# Recent Unread Emails (${unread.count} total)\n\n${markdown || "_No unread emails._"}`,
+                },
+            ],
+        };
+    }
+    throw new McpError(ErrorCode.InvalidRequest, `Unknown resource URI: ${uri}`);
+});
+// Register MCP Prompts
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+    return {
+        prompts: [
+            {
+                name: "triage-inbox",
+                description: "Inspects recent unread messages and formulates an actionable priority plan.",
+                arguments: [
+                    {
+                        name: "focus",
+                        description: "Optional category to focus on (e.g. security, billing, urgent).",
+                        required: false,
+                    },
+                ],
+            },
+            {
+                name: "draft-reply",
+                description: "Author a contextual, polished reply for a target thread.",
+                arguments: [
+                    {
+                        name: "thread_id",
+                        description: "ID of the thread to reply to.",
+                        required: true,
+                    },
+                    {
+                        name: "tone",
+                        description: "Tone for reply (professional, concise, friendly).",
+                        required: false,
+                    },
+                ],
+            },
+            {
+                name: "weekly-digest",
+                description: "Summarizes all important notices, updates, and open requests received this week.",
+            },
+        ],
+    };
+});
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    if (name === "triage-inbox") {
+        const focus = args?.focus ? ` Focus specifically on: ${args.focus}.` : "";
+        return {
+            description: "Inbox Triage Workflow",
+            messages: [
+                {
+                    role: "user",
+                    content: {
+                        type: "text",
+                        text: `Please fetch the unread emails using 'search_emails' or the 'gmail://inbox/unread' resource. Classify them into Critical, High, and Low priority, extract any deadlines or pending invoices, and draft immediate responses for urgent items.${focus}`,
+                    },
+                },
+            ],
+        };
+    }
+    if (name === "draft-reply") {
+        const threadId = args?.thread_id || "";
+        const tone = args?.tone || "professional";
+        return {
+            description: "Draft Reply Workflow",
+            messages: [
+                {
+                    role: "user",
+                    content: {
+                        type: "text",
+                        text: `Please read the email thread with ID '${threadId}' using 'read_email'. Analyze the sender's questions or requests and draft a ${tone} response ready to review or send.`,
+                    },
+                },
+            ],
+        };
+    }
+    if (name === "weekly-digest") {
+        return {
+            description: "Weekly Digest Workflow",
+            messages: [
+                {
+                    role: "user",
+                    content: {
+                        type: "text",
+                        text: "Please search recent emails from the past 7 days using 'search_emails' and generate a clean executive digest highlighting key achievements, pending approvals, and upcoming deadlines.",
+                    },
+                },
+            ],
+        };
+    }
+    throw new McpError(ErrorCode.InvalidRequest, `Unknown prompt: ${name}`);
+});
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("[gmail-browser-mcp] Stdio MCP Server started successfully with 27 Gmail tools.");
+    console.error("[gmail-browser-mcp] Stdio MCP Server started successfully with 27 Gmail tools, 3 Resources, and 3 Prompts.");
     if (process.env.GMAIL_WARM_ON_START !== "false") {
         defaultSessionManager.warmup().catch((err) => {
             console.error("[gmail-browser-mcp] Background session warmup notice:", err.message);
