@@ -242,6 +242,49 @@ def cmd_metrics(args):
         print(f"{RED}Failed to fetch metrics: {res.get('error')}{RESET}")
 
 
+def cmd_triage(args):
+    """Fetches and performs priority classification on unread inbox messages."""
+    limit = args.limit or 10
+    print(f"\n{CYAN}{BOLD}=== Gmail Smart Inbox Triage (Top {limit}) ==={RESET}\n")
+
+    if is_socket_active():
+        res = send_via_socket("search_emails", {"is_unread": True, "limit": limit})
+    else:
+        res = send_via_stdio("search_emails", {"is_unread": True, "limit": limit})
+
+    if res.get("status") != "success":
+        print(f"{RED}Failed to load unread messages: {res.get('error')}{RESET}")
+        return
+
+    emails = res.get("data", {}).get("emails", [])
+    if not emails:
+        print(f"{GREEN}Inbox Zero! No unread messages require triage.{RESET}\n")
+        return
+
+    for idx, e in enumerate(emails, 1):
+        subj = (e.get("subject") or "").lower()
+        sender = e.get("sender") or "Unknown"
+        date = e.get("date") or ""
+
+        if any(w in subj for w in ["security alert", "sign-in", "verification", "password"]):
+            badge = f"{RED}[CRITICAL]{RESET}"
+            action = "Account security review required immediately"
+        elif any(w in subj for w in ["invoice", "payment", "receipt", "billing", "urgent", "asap"]):
+            badge = f"{YELLOW}[HIGH]{RESET}    "
+            action = "Requires urgent review or payment validation"
+        elif any(w in subj for w in ["newsletter", "unsubscribe", "weekly", "digest"]):
+            badge = f"\033[90m[NEWSLETTER]{RESET}"
+            action = "Archive or skim during bulk triage"
+        else:
+            badge = f"{CYAN}[MEDIUM]{RESET}  "
+            action = "Standard unread message"
+
+        print(f" {badge} {BOLD}{e.get('subject')}{RESET}")
+        print(f"     From: {sender} | Date: {date}")
+        print(f"     Action: {action}")
+        print(f"     Snippet: {e.get('snippet', '')[:90]}...\n")
+
+
 def cmd_doctor(args):
     """Performs end-to-end self-diagnostic system health check."""
     print(f"\n{BOLD}{CYAN}=== Gmail MCP System Health Diagnostics (Doctor) ==={RESET}\n")
@@ -378,6 +421,11 @@ def main():
     # 9. Doctor
     p_doctor = subparsers.add_parser("doctor", help="Run end-to-end self-diagnostic system health check")
     p_doctor.set_defaults(func=cmd_doctor)
+
+    # 10. Triage
+    p_triage = subparsers.add_parser("triage", help="Classify and prioritize unread emails")
+    p_triage.add_argument("-n", "--limit", type=int, default=10, help="Max unread emails to triage")
+    p_triage.set_defaults(func=cmd_triage)
 
     args = parser.parse_args()
     args.func(args)

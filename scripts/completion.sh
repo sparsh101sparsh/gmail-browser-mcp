@@ -5,7 +5,7 @@ _fast_mail_completions() {
     local cur prev subcommands
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    subcommands="send search read stats check login daemon metrics doctor"
+    subcommands="send search read stats check login daemon metrics doctor triage"
 
     if [ "$COMP_CWORD" -eq 1 ]; then
         COMPREPLY=( $(compgen -W "${subcommands}" -- "$cur") )
