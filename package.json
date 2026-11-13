@@ -16,8 +16,9 @@
     "backup:drafts": "node scripts/export_drafts.js",
     "doctor": "python3 scripts/fast_mail.py doctor",
     "metrics": "python3 scripts/fast_mail.py metrics",
-    "test": "node --test test/cookies.test.js test/rate_limiter.test.js test/guardrails.test.js test/validation.test.js test/mcp_protocol.test.js test/speed_benchmark.test.js test/advanced_tools.test.js test/recipients.test.js test/security.test.js test/python_fast_client.test.js test/html_sanitizer.test.js test/extended_filters.test.js test/analytics.test.js test/templates.test.js test/batch_operations.test.js",
-    "test:unit": "node --test test/cookies.test.js test/rate_limiter.test.js test/guardrails.test.js test/validation.test.js test/mcp_protocol.test.js test/advanced_tools.test.js test/recipients.test.js test/security.test.js test/python_fast_client.test.js test/html_sanitizer.test.js test/extended_filters.test.js test/analytics.test.js test/templates.test.js test/batch_operations.test.js",
+    "triage": "python3 scripts/fast_mail.py triage",
+    "test": "node --test test/cookies.test.js test/rate_limiter.test.js test/guardrails.test.js test/validation.test.js test/mcp_protocol.test.js test/speed_benchmark.test.js test/advanced_tools.test.js test/recipients.test.js test/security.test.js test/python_fast_client.test.js test/html_sanitizer.test.js test/extended_filters.test.js test/analytics.test.js test/templates.test.js test/batch_operations.test.js test/cache.test.js test/priority.test.js test/mcp_resources_prompts.test.js",
+    "test:unit": "node --test test/cookies.test.js test/rate_limiter.test.js test/guardrails.test.js test/validation.test.js test/mcp_protocol.test.js test/advanced_tools.test.js test/recipients.test.js test/security.test.js test/python_fast_client.test.js test/html_sanitizer.test.js test/extended_filters.test.js test/analytics.test.js test/templates.test.js test/batch_operations.test.js test/cache.test.js test/priority.test.js test/mcp_resources_prompts.test.js",
     "test:speed": "node --test test/speed_benchmark.test.js",
     "test:e2e": "node test/e2e_live.test.js"
   },

@@ -17,6 +17,9 @@ test("Python Fast Client CLI Test Suite", async (t) => {
     assert.ok(stdout.includes("stats"));
     assert.ok(stdout.includes("login"));
     assert.ok(stdout.includes("daemon"));
+    assert.ok(stdout.includes("metrics"));
+    assert.ok(stdout.includes("doctor"));
+    assert.ok(stdout.includes("triage"));
   });
 
   await t.test("reports daemon status accurately when idle", async () => {
@@ -40,5 +43,11 @@ test("Python Fast Client CLI Test Suite", async (t) => {
     } catch (err) {
       assert.ok(err.stderr.includes("invalid choice"));
     }
+  });
+
+  await t.test("doctor sub-command executes diagnostic checks", async () => {
+    const { stdout } = await execFileAsync("python3", [scriptPath, "doctor"]);
+    assert.ok(stdout.includes("Gmail MCP System Health Diagnostics"));
+    assert.ok(stdout.includes("Node.js runtime"));
   });
 });
