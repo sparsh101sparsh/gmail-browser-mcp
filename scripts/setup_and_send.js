@@ -33,7 +33,7 @@ async function main() {
   const timestamp = new Date().toLocaleString("en-US", { timeZoneName: "short" });
   const body = `Hey Sparsh,
 
-This email was sent via the new Gmail MCP Persistent Profile engine.
+This email was sent via my Gmail MCP Persistent Profile engine.
 
 Performance & Architecture:
 • Engine: Persistent Chrome Profile (~/.gmail-mcp-profile)
@@ -45,7 +45,7 @@ Performance & Architecture:
 All automated systems are running smoothly!
 
 Best,
-Agent Assistant`;
+Sparsh`;
 
   console.log(`[setup_and_send] Profile directory: ${profileDir}`);
   console.log(`[setup_and_send] Outbound Target: ${to}`);

@@ -26,10 +26,10 @@ export function sanitizeEmailBody(rawText) {
             break;
         }
     }
-    // 3. If suspicious prompt injection vectors detected, neutralize by wrapping with warning tags
+    // 3. If suspicious instruction override vectors detected, neutralize by wrapping with warning tags
     if (hasInjectionAttempt) {
-        console.error("[security] Potential indirect prompt injection pattern detected in incoming email body.");
-        clean = `[UNTRUSTED_CONTENT_WARNING: The following email body contains text attempting prompt override instructions]\n<<<EMAIL_BODY_START>>>\n${clean}\n<<<EMAIL_BODY_END>>>`;
+        console.error("[security] Potential untrusted instruction payload detected in incoming email body.");
+        clean = `[UNTRUSTED_CONTENT_WARNING: The following email body contains text attempting system override instructions]\n<<<EMAIL_BODY_START>>>\n${clean}\n<<<EMAIL_BODY_END>>>`;
     }
     // 4. Bound length to 50,000 characters to prevent buffer bloat
     return clean.slice(0, 50000);

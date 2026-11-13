@@ -8,7 +8,7 @@ This document records empirical latency measurements and execution profiles acro
 
 | Transport Method | Cold Start | Warm In-Memory | Overhead | Best For |
 | :--- | :--- | :--- | :--- | :--- |
-| **Unix Domain Socket (`AF_UNIX`)** | N/A | **< 150 ms** | ~0.8 ms | Real-time CLI, Agent Tool Calls |
+| **Unix Domain Socket (`AF_UNIX`)** | N/A | **< 150 ms** | ~0.8 ms | Real-time CLI, Tool Calls |
 | **MCP Stdio (Direct Process)** | ~4,500 ms | **< 800 ms** | ~12 ms | IDE MCP Plugins, Claude Desktop |
 | **Ephemeral Chromium (Legacy)** | ~18,000 ms | N/A | High | Cookie-only environments |
 
@@ -31,7 +31,7 @@ Measurements captured using atomic CDP injection (`Input.insertText`) vs legacy 
 
 ## 3. Pacing & Rate Limiting Enforcement
 
-To safeguard account reputation and prevent anti-bot challenges:
+To maintain session stability and respect Gmail rate limits:
 - **Search clamp**: Automatically capped to a maximum of 30 results per page.
 - **Pacing interval**: 100ms minimum inter-keystroke spacing on input fallback.
 - **Circuit breaker**: Zero-latency halt on Google security checkpoints (`/challenge/`, `/sorry/index`).
